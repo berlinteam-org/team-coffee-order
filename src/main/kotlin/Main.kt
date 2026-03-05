@@ -205,11 +205,11 @@ fun main() {
                 val expiresAt = Instant.now().plus(Duration.ofMinutes(5))
                 loginCodes[email.lowercase()] = LoginCode(code, expiresAt)
 
+                // Always print to logs for debugging/fallback
+                println("Login code for $email: $code (valid for 5 minutes)")
+
                 val devMode = System.getenv("DEV_MODE") == "true"
-                if (devMode) {
-                    // Local: just print to terminal
-                    println("Login code for $email: $code (valid for 5 minutes)")
-                } else {
+                if (!devMode) {
                     // Production: send via Gmail SMTP
                     try {
                         val smtpHost = System.getenv("MAIL_SMTP_HOST") ?: "smtp.gmail.com"
