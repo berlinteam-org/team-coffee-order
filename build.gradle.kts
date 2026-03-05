@@ -14,6 +14,7 @@ dependencies {
     implementation("io.ktor:ktor-server-core:3.4.0")
     implementation("io.ktor:ktor-server-netty:3.4.0")
     implementation("ch.qos.logback:logback-classic:1.5.12")
+    implementation("com.sun.mail:jakarta.mail:2.0.1")
 }
 
 application {

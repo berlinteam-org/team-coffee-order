@@ -12,6 +12,9 @@ import java.net.URLEncoder
 import kotlin.random.Random
 import java.time.Instant
 import java.time.Duration
+import jakarta.mail.*
+import jakarta.mail.internet.*
+import java.util.Properties
 
 data class LoginCode(val code: String, val expiresAt: Instant)
 
@@ -202,7 +205,41 @@ fun main() {
                 val expiresAt = Instant.now().plus(Duration.ofMinutes(5))
                 loginCodes[email.lowercase()] = LoginCode(code, expiresAt)
 
-                println("Login code for $email: $code (valid for 5 minutes)")
+                val devMode = System.getenv("DEV_MODE") == "true"
+                if (devMode) {
+                    // Local: just print to terminal
+                    println("Login code for $email: $code (valid for 5 minutes)")
+                } else {
+                    // Production: send via Gmail SMTP
+                    try {
+                        val smtpHost = System.getenv("MAIL_SMTP_HOST") ?: "smtp.gmail.com"
+                        val smtpPort = System.getenv("MAIL_SMTP_PORT") ?: "587"
+                        val mailUser = System.getenv("MAIL_USERNAME") ?: ""
+                        val mailPass = System.getenv("MAIL_PASSWORD") ?: ""
+                        val mailFrom = System.getenv("MAIL_FROM") ?: mailUser
+
+                        val props = Properties().apply {
+                            put("mail.smtp.host", smtpHost)
+                            put("mail.smtp.port", smtpPort)
+                            put("mail.smtp.auth", "true")
+                            put("mail.smtp.starttls.enable", "true")
+                        }
+                        val session = Session.getInstance(props, object : Authenticator() {
+                            override fun getPasswordAuthentication() =
+                                PasswordAuthentication(mailUser, mailPass)
+                        })
+                        val message = MimeMessage(session).apply {
+                            setFrom(InternetAddress(mailFrom, "Team Coffee"))
+                            setRecipients(Message.RecipientType.TO, InternetAddress.parse(email))
+                            subject = "Your login code"
+                            setText("Your login code is: $code\n\nThe code is valid for 5 minutes.")
+                        }
+                        Transport.send(message)
+                        println("Login code email sent to $email")
+                    } catch (e: Exception) {
+                        println("Failed to send email to $email: ${e.message}")
+                    }
+                }
 
                 call.respondText(
                     """
