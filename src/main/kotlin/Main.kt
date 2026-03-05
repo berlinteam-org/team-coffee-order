@@ -177,8 +177,8 @@ fun main() {
                     return@post
                 }
 
-                // Test bypass: skip code check for the test address
-                if (email.lowercase() == "a@b.de") {
+                // Test bypass: skip code check for the test address (only in DEV_MODE)
+                if (System.getenv("DEV_MODE") == "true" && email.lowercase() == "a@b.de") {
                     call.respondText(
                         """
                         <!DOCTYPE html>
