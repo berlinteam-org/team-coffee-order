@@ -10,10 +10,10 @@ services:
     volumes:
       - .:/app
       - gradle-cache:/home/gradle/.gradle
-    environment:
-      - TELEGRAM_BOT_TOKEN=7075351596:AAEaRzR7-PnEDgbDIsT__U8W8JItif-cPzs
-      - TELEGRAM_CHAT_ID=81255808
+    env_file:
+      - .env
 
 volumes:
   gradle-cache:
+
 

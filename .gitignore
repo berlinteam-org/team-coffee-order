@@ -1,0 +1,16 @@
+# Environment secrets – never commit this!
+.env
+
+# macOS
+.DS_Store
+
+# Gradle
+.gradle/
+build/
+
+# IntelliJ
+.idea/
+*.iml
+
+# Kotlin
+.kotlin/
