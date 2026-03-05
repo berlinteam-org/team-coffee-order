@@ -26,6 +26,9 @@ fun main() {
             staticResources("/assets", "assets")
 
             get("/") {
+                val mailingOn = System.getenv("MAILING_ON") ?: "ON"
+                val isOff = mailingOn.uppercase() == "OFF"
+
                 call.respondText(
                     """
                     <!DOCTYPE html>
@@ -60,6 +63,7 @@ fun main() {
                                 width: 100%;
                                 max-width: 380px;
                                 backdrop-filter: blur(18px);
+                                text-align: center;
                             }
                             .logo {
                                 width: 60px;
@@ -79,17 +83,20 @@ fun main() {
                                 font-size: 24px;
                                 margin-bottom: 6px;
                                 color: #0b1a33;
+                                text-align: center;
                             }
                             p.subtitle {
                                 font-size: 14px;
                                 color: #4a5b7c;
                                 margin-bottom: 26px;
+                                text-align: center;
                             }
                             .field {
                                 display: flex;
                                 flex-direction: column;
                                 gap: 6px;
                                 margin-bottom: 16px;
+                                text-align: left;
                             }
                             label {
                                 font-size: 13px;
@@ -104,6 +111,7 @@ fun main() {
                                 outline: none;
                                 transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
                                 background: rgba(248, 250, 255, 0.95);
+                                width: 100%;
                             }
                             input:focus {
                                 border-color: #2f7bff;
@@ -128,6 +136,7 @@ fun main() {
                                 color: #ffffff;
                                 box-shadow: 0 14px 35px rgba(15, 76, 163, 0.45);
                                 transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+                                width: 100%;
                             }
                             button:hover {
                                 transform: translateY(-1px);
@@ -151,18 +160,30 @@ fun main() {
                             <div class="logo">
                                 <img src="/assets/berlin_team.svg" alt="Logo" />
                             </div>
-                            <h1>Welcome back</h1>
-                            <p class="subtitle">Log in without a password using only your email.</p>
-                            <form method="post" action="/login/request-code">
-                                <div class="field">
-                                    <label for="email">Email Address</label>
-                                    <input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required />
-                                </div>
-                                <div class="actions">
-                                    <button type="submit">Request Login Link</button>
-                                    <p class="meta">We'll send a one-time code to your email.</p>
-                                </div>
-                            </form>
+                            ${if (isOff) """
+                                <h1>Order Team Coffee</h1>
+                                <p class="subtitle">Quick pre order for team.</p>
+                                <form method="post" action="/coffee">
+                                    <input type="hidden" name="email" value="guest@digital-consultants.de" />
+                                    <input type="hidden" name="skipAuth" value="true" />
+                                    <div class="actions">
+                                        <button type="submit">Order coffee now</button>
+                                    </div>
+                                </form>
+                            """ else """
+                                <h1>Welcome back</h1>
+                                <p class="subtitle">Log in without a password using only your email.</p>
+                                <form method="post" action="/login/request-code">
+                                    <div class="field">
+                                        <label for="email">Email Address</label>
+                                        <input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required />
+                                    </div>
+                                    <div class="actions">
+                                        <button type="submit">Request Login Link</button>
+                                        <p class="meta">We'll send a one-time code to your email.</p>
+                                    </div>
+                                </form>
+                            """}
                         </main>
                     </body>
                     </html>
