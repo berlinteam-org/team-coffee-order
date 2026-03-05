@@ -625,7 +625,7 @@ fun main() {
                                     <ul id="cartList"></ul>
                                     <p class="hint">When you are done, klick ready and send us your order.</p>
                                     <div class="send-row">
-                                        <button type="submit" id="sendBtn" disabled>Senden</button>
+                                        <button type="submit" id="sendBtn" disabled>Send</button>
                                     </div>
 
                                     <input type="hidden" name="summary" id="summaryInput" />
