@@ -23,7 +23,7 @@ private val loginCodes = mutableMapOf<String, LoginCode>()
 fun main() {
     embeddedServer(Netty, port = 8080) {
         routing {
-            staticFiles("/assets", File("src/main/resources/assets"))
+            staticResources("/assets", "assets")
 
             get("/") {
                 call.respondText(
@@ -151,16 +151,16 @@ fun main() {
                             <div class="logo">
                                 <img src="/assets/berlin_team.svg" alt="Logo" />
                             </div>
-                            <h1>Willkommen zurück</h1>
-                            <p class="subtitle">Melde dich ganz ohne Passwort nur mit deiner E‑Mail an.</p>
+                            <h1>Welcome back</h1>
+                            <p class="subtitle">Log in without a password using only your email.</p>
                             <form method="post" action="/login/request-code">
                                 <div class="field">
-                                    <label for="email">E‑Mail Adresse</label>
+                                    <label for="email">Email Address</label>
                                     <input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required />
                                 </div>
                                 <div class="actions">
-                                    <button type="submit">Login‑Link anfordern</button>
-                                    <p class="meta">Wir senden dir einen einmaligen Code per E‑Mail.</p>
+                                    <button type="submit">Request Login Link</button>
+                                    <p class="meta">We'll send a one-time code to your email.</p>
                                 </div>
                             </form>
                         </main>
@@ -176,7 +176,7 @@ fun main() {
                 val email = params["email"]?.trim().orEmpty()
 
                 if (email.isBlank()) {
-                    call.respond(HttpStatusCode.BadRequest, "E-Mail darf nicht leer sein.")
+                    call.respond(HttpStatusCode.BadRequest, "Email must not be empty.")
                     return@post
                 }
 
@@ -258,10 +258,10 @@ fun main() {
                 call.respondText(
                     """
                     <!DOCTYPE html>
-                    <html lang="de">
+                    <html lang="en">
                     <head>
                         <meta charset="UTF-8">
-                        <title>Code gesendet</title>
+                        <title>Code Sent</title>
                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
                         <style>
                             body {
@@ -328,16 +328,16 @@ fun main() {
                     </head>
                     <body>
                         <main class="card">
-                            <h1>Code gesendet</h1>
-                            <p>Wir haben einen einmaligen Login-Code an <strong>${email}</strong> geschickt (in dieser Demo wird er nur im Server‑Log angezeigt).</p>
+                            <h1>Code Sent</h1>
+                            <p>We've sent a one-time login code to <strong>${email}</strong>.</p>
                             <form method="post" action="/coffee">
                                 <input type="hidden" name="email" value="${email}" />
                                 <div class="field">
-                                    <label for="code">Login‑Code</label>
+                                    <label for="code">Login Code</label>
                                     <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" placeholder="123456" required />
                                 </div>
-                                <button type="submit">Code bestätigen</button>
-                                <p class="hint">Der Code ist 5 Minuten gültig.</p>
+                                <button type="submit">Verify Code</button>
+                                <p class="hint">The code is valid for 5 minutes.</p>
                             </form>
                         </main>
                     </body>
@@ -366,7 +366,7 @@ fun main() {
                     call.respondText(
                         """
                         <!DOCTYPE html>
-                        <html lang="de">
+                        <html lang="en">
                         <head>
                             <meta charset="UTF-8">
                             <title>Team Coffee</title>
@@ -648,7 +648,7 @@ fun main() {
                                 document.getElementById('addBtn').addEventListener('click', () => {
                                     const name = friendInput.value.trim();
                                     if (!name) {
-                                        alert('Bitte gib einen Vornamen ein.');
+                                        alert('Please enter a name.');
                                         return;
                                     }
                                     const drinkChecked = document.querySelector('input[name="drink"]:checked');
@@ -665,7 +665,7 @@ fun main() {
                                 document.getElementById('coffeeForm').addEventListener('submit', (e) => {
                                     if (cart.length === 0) {
                                         e.preventDefault();
-                                        alert('Bitte füge mindestens eine Person hinzu.');
+                                        alert('Please add at least one coffee to the list.');
                                     }
                                 });
 
@@ -678,19 +678,19 @@ fun main() {
                         ContentType.Text.Html
                     )
                 } else {
-                    val message = "Der Code ist ungültig oder abgelaufen."
+                val message = "The code is invalid or has expired."
                     call.respondText(
                         """
                         <!DOCTYPE html>
-                        <html lang="de">
+                        <html lang="en">
                         <head>
                             <meta charset="UTF-8">
-                            <title>Login fehlgeschlagen</title>
+                            <title>Login Failed</title>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0">
                         </head>
                         <body>
                             <p>$message</p>
-                            <p><a href="/">Zurück zur Login-Seite</a></p>
+                            <p><a href="/">Back to login page</a></p>
                         </body>
                         </html>
                         """.trimIndent(),
@@ -705,7 +705,7 @@ fun main() {
                 val email = params["email"]?.trim().orEmpty()
 
                 if (summary.isBlank()) {
-                    call.respond(HttpStatusCode.BadRequest, "Keine Bestellung übermittelt.")
+                    call.respond(HttpStatusCode.BadRequest, "No order data received.")
                     return@post
                 }
 
@@ -737,16 +737,16 @@ fun main() {
                 val statusText = if (telegramOk) {
                     "Your team coffee order has been sent to the service team!"
                 } else {
-                    "Bestellung erstellt, aber Telegram konnte nicht erreicht werden. Bitte prüfe Bot-Token und Chat-ID."
+                    "Order created, but Telegram could not be reached. Please check the bot token and chat ID."
                 }
 
                 call.respondText(
                     """
                     <!DOCTYPE html>
-                    <html lang="de">
+                    <html lang="en">
                     <head>
                         <meta charset="UTF-8">
-                        <title>Team Coffee – gesendet</title>
+                        <title>Team Coffee – Sent</title>
                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
                         <link rel="icon" type="image/svg+xml" href="/assets/berlin_team.svg" />
                         <style>
