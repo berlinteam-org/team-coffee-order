@@ -756,7 +756,7 @@ fun main() {
                 }
 
                 val statusText = if (telegramOk) {
-                    "Your team coffee order has been sent to the service team!"
+                    "Your team coffee order has been sent to the coffee team!"
                 } else {
                     "Order created, but Telegram could not be reached. Please check the bot token and chat ID."
                 }
