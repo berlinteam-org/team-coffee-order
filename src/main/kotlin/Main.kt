@@ -222,7 +222,21 @@ fun main() {
                             put("mail.smtp.host", smtpHost)
                             put("mail.smtp.port", smtpPort)
                             put("mail.smtp.auth", "true")
-                            put("mail.smtp.starttls.enable", "true")
+                            
+                            // Essential for cloud providers / SSL vs STARTTLS
+                            if (smtpPort == "465") {
+                                put("mail.smtp.ssl.enable", "true")
+                                put("mail.smtp.socketFactory.port", "465")
+                                put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory")
+                            } else {
+                                put("mail.smtp.starttls.enable", "true")
+                                put("mail.smtp.starttls.required", "true")
+                            }
+
+                            // Timeouts to prevent hanging
+                            put("mail.smtp.connectiontimeout", "10000")
+                            put("mail.smtp.timeout", "10000")
+                            put("mail.smtp.writetimeout", "10000")
                         }
                         val session = Session.getInstance(props, object : Authenticator() {
                             override fun getPasswordAuthentication() =
