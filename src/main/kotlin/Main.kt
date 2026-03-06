@@ -344,15 +344,19 @@ private fun pwaBanner() = """
 private fun verifyTurnstile(token: String, secret: String): Boolean {
     return try {
         val url = java.net.URL("https://challenges.cloudflare.com/turnstile/v0/siteverify")
-        val data = "secret=" + URLEncoder.encode(secret, "UTF-8") +
-                   "&response=" + URLEncoder.encode(token, "UTF-8")
+        val dataBytes = ("secret=" + URLEncoder.encode(secret, "UTF-8") +
+                        "&response=" + URLEncoder.encode(token, "UTF-8"))
+                        .toByteArray(Charsets.UTF_8)
         val conn = url.openConnection() as java.net.HttpURLConnection
         conn.requestMethod = "POST"
         conn.doOutput = true
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-        conn.outputStream.use { os -> os.write(data.toByteArray(Charsets.UTF_8)) }
-        val response = conn.inputStream.bufferedReader().readText()
-        println("Turnstile response: $response")
+        conn.setRequestProperty("Content-Length", dataBytes.size.toString())
+        conn.outputStream.use { os -> os.write(dataBytes) }
+        val responseCode = conn.responseCode
+        val stream = if (responseCode in 200..299) conn.inputStream else conn.errorStream
+        val response = stream.bufferedReader().readText()
+        println("Turnstile response ($responseCode): $response")
         response.contains("\"success\":true")
     } catch (e: Exception) {
         println("Turnstile verification error: ${e.message}")
