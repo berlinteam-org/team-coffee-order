@@ -357,6 +357,7 @@ private fun verifyTurnstile(token: String, secret: String): Boolean {
         val stream = if (responseCode in 200..299) conn.inputStream else conn.errorStream
         val response = stream.bufferedReader().readText()
         println("Turnstile response ($responseCode): $response")
+        println("Turnstile secret length: ${secret.length}, token length: ${token.length}")
         response.contains("\"success\":true")
     } catch (e: Exception) {
         println("Turnstile verification error: ${e.message}")
@@ -739,7 +740,7 @@ fun main() {
                 val now = Instant.now()
 
                 val turnstileToken = params["cf-turnstile-response"]?.trim().orEmpty()
-                val turnstileSecret = System.getenv("CLOUDFLARE_TURNSTILE") ?: ""
+                val turnstileSecret = System.getenv("CLOUDFLARE_TURNSTILE")?.trim() ?: ""
                 val devMode = System.getenv("DEV_MODE") == "true"
                 val success = if (skipAuth) {
                     if (devMode || turnstileSecret.isBlank()) true
