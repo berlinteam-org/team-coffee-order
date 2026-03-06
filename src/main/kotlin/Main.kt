@@ -20,14 +20,365 @@ data class LoginCode(val code: String, val expiresAt: Instant)
 
 private val loginCodes = mutableMapOf<String, LoginCode>()
 
+// ─── PWA ──────────────────────────────────────────────────────────────────────
+
+private val MANIFEST_JSON = """
+{
+  "name": "Team Coffee",
+  "short_name": "Coffee",
+  "description": "Order coffee for your team",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#021b79",
+  "theme_color": "#0b63ce",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/assets/berlin_team.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
+""".trimIndent()
+
+private val SERVICE_WORKER_JS = """
+var CACHE = 'team-coffee-v1';
+var STATIC_ASSETS = [
+  '/assets/berlin_team.svg',
+  '/assets/logo.svg',
+  '/assets/OPS_Logo.png',
+  '/manifest.json'
+];
+
+self.addEventListener('install', function(event) {
+  event.waitUntil(
+    caches.open(CACHE).then(function(cache) {
+      return cache.addAll(STATIC_ASSETS);
+    })
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', function(event) {
+  event.waitUntil(
+    caches.keys().then(function(keys) {
+      return Promise.all(
+        keys.filter(function(k) { return k !== CACHE; })
+            .map(function(k) { return caches.delete(k); })
+      );
+    })
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', function(event) {
+  var req = event.request;
+  if (req.method !== 'GET') return;
+  var url = new URL(req.url);
+
+  if (url.pathname.startsWith('/assets/') || url.pathname === '/manifest.json') {
+    event.respondWith(
+      caches.match(req).then(function(cached) {
+        var networkFetch = fetch(req).then(function(response) {
+          if (response.ok) {
+            var clone = response.clone();
+            caches.open(CACHE).then(function(c) { c.put(req, clone); });
+          }
+          return response;
+        });
+        return cached || networkFetch;
+      })
+    );
+    return;
+  }
+
+  event.respondWith(
+    fetch(req).then(function(response) {
+      if (response.ok) {
+        var clone = response.clone();
+        caches.open(CACHE).then(function(c) { c.put(req, clone); });
+      }
+      return response;
+    }).catch(function() {
+      return caches.match(req);
+    })
+  );
+});
+""".trimIndent()
+
+private fun pwaHead() = """
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Team Coffee">
+    <link rel="apple-touch-icon" href="/assets/berlin_team.svg">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').catch(function() {});
+            });
+        }
+    </script>
+""".trimIndent()
+
+private fun pwaBanner() = """
+    <style>
+        #pwa-banner {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 9999;
+            background: rgba(255, 255, 255, 0.97);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(15, 35, 95, 0.12);
+            box-shadow: 0 2px 16px rgba(0, 26, 77, 0.12);
+            padding: 10px 16px;
+            align-items: center;
+            gap: 10px;
+        }
+        #pwa-banner img { width: 28px; height: 28px; flex-shrink: 0; object-fit: contain; }
+        #pwa-banner-text { flex: 1; font-size: 13px; font-weight: 500; color: #0b1a33; min-width: 0; font-family: system-ui, -apple-system, sans-serif; }
+        #pwa-install-btn {
+            flex-shrink: 0;
+            border: none;
+            border-radius: 999px;
+            padding: 7px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            background: linear-gradient(135deg, #1d6bff 0%, #23a6ff 100%);
+            color: #fff;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(15, 76, 163, 0.35);
+            width: auto;
+            transition: filter 0.15s;
+        }
+        #pwa-install-btn:hover { filter: brightness(1.08); }
+        #pwa-close-btn {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #8899bb;
+            cursor: pointer;
+            padding: 2px 4px;
+            line-height: 1;
+            width: auto;
+            box-shadow: none;
+        }
+        #ios-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: rgba(0, 0, 0, 0.55);
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .ios-sheet {
+            background: #fff;
+            border-radius: 24px 24px 0 0;
+            padding: 28px 24px 44px;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.18);
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .ios-sheet h2 { font-size: 20px; font-weight: 700; color: #0b1a33; margin: 0 0 4px; }
+        .ios-subtitle { font-size: 14px; color: #627099; margin: 0 0 24px; }
+        .ios-step { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+        .ios-step-num {
+            width: 30px; height: 30px; flex-shrink: 0;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #1d6bff, #38f9d7);
+            color: #fff;
+            font-size: 14px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .ios-step-text { font-size: 14px; color: #2f3c59; padding-top: 5px; line-height: 1.5; }
+        .ios-step-text strong { color: #0b1a33; }
+        #ios-modal-close {
+            margin-top: 28px;
+            width: 100%;
+            border: none;
+            border-radius: 999px;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            background: linear-gradient(135deg, #1d6bff 0%, #23a6ff 45%, #38f9d7 100%);
+            color: #fff;
+            box-shadow: 0 10px 30px rgba(15, 76, 163, 0.35);
+        }
+        #cookie-notice {
+            display: none;
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            z-index: 9998;
+            background: rgba(255, 255, 255, 0.97);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(15, 35, 95, 0.12);
+            box-shadow: 0 -2px 16px rgba(0, 26, 77, 0.08);
+            padding: 8px 14px;
+            align-items: center;
+            gap: 10px;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        #cookie-notice .cookie-emoji { font-size: 14px; flex-shrink: 0; }
+        #cookie-notice .cookie-text { flex: 1; font-size: 11px; color: #4a5b7c; line-height: 1.4; }
+        #cookie-close {
+            flex-shrink: 0;
+            background: none;
+            border: 1px solid rgba(15, 35, 95, 0.2);
+            border-radius: 999px;
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #2f3c59;
+            white-space: nowrap;
+            width: auto;
+            box-shadow: none;
+            transition: background 0.15s;
+        }
+        #cookie-close:hover { background: rgba(15, 35, 95, 0.06); }
+    </style>
+
+    <div id="pwa-banner">
+        <img src="/assets/berlin_team.svg" alt="" />
+        <span id="pwa-banner-text">Install coffee app for a quicker caffeine injection</span>
+        <button id="pwa-install-btn">Install App</button>
+        <button id="pwa-close-btn" aria-label="Close">&#x2715;</button>
+    </div>
+
+    <div id="ios-modal">
+        <div class="ios-sheet">
+            <h2>Install Team Coffee</h2>
+            <p class="ios-subtitle">Add to your home screen for instant access.</p>
+            <div class="ios-step">
+                <div class="ios-step-num">1</div>
+                <div class="ios-step-text">
+                    Tap the <strong>Share</strong> button
+                    <svg style="vertical-align:middle;margin:0 3px" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1d6bff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                    at the bottom of your browser.
+                </div>
+            </div>
+            <div class="ios-step">
+                <div class="ios-step-num">2</div>
+                <div class="ios-step-text">Scroll down and tap <strong>"Add to Home Screen"</strong>.</div>
+            </div>
+            <div class="ios-step">
+                <div class="ios-step-num">3</div>
+                <div class="ios-step-text">Tap <strong>"Add"</strong> in the top-right corner to finish.</div>
+            </div>
+            <button id="ios-modal-close">Got it!</button>
+        </div>
+    </div>
+
+    <div id="cookie-notice">
+        <span class="cookie-emoji">🔒</span>
+        <span class="cookie-text">We take your privacy seriously. This site uses only essential cookies to ensure the donation process works properly. We do not use any tracking or marketing cookies.</span>
+        <button id="cookie-close">Got this</button>
+    </div>
+
+    <script>
+        (function() {
+            var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+            // PWA install banner — shown on every page load unless already installed
+            if (!standalone) {
+                var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                var banner = document.getElementById('pwa-banner');
+                var iosModal = document.getElementById('ios-modal');
+                var deferredPrompt = null;
+
+                window.addEventListener('beforeinstallprompt', function(e) {
+                    e.preventDefault();
+                    deferredPrompt = e;
+                });
+
+                setTimeout(function() { banner.style.display = 'flex'; }, 800);
+
+                document.getElementById('pwa-install-btn').addEventListener('click', function() {
+                    if (isIOS) {
+                        iosModal.style.display = 'flex';
+                    } else if (deferredPrompt) {
+                        deferredPrompt.prompt();
+                        deferredPrompt.userChoice.then(function(result) {
+                            if (result.outcome === 'accepted') {
+                                banner.style.display = 'none';
+                            }
+                            deferredPrompt = null;
+                        });
+                    }
+                });
+
+                document.getElementById('pwa-close-btn').addEventListener('click', function() {
+                    banner.style.display = 'none';
+                });
+
+                document.getElementById('ios-modal-close').addEventListener('click', function() {
+                    iosModal.style.display = 'none';
+                    banner.style.display = 'none';
+                });
+            }
+
+            // Cookie notice — shown on every page load
+            setTimeout(function() {
+                document.getElementById('cookie-notice').style.display = 'flex';
+            }, 300);
+
+            document.getElementById('cookie-close').addEventListener('click', function() {
+                document.getElementById('cookie-notice').style.display = 'none';
+            });
+        })();
+    </script>
+""".trimIndent()
+
+// ──────────────────────────────────────────────────────────────────────────────
+
+private fun verifyTurnstile(token: String, secret: String): Boolean {
+    return try {
+        val url = java.net.URL("https://challenges.cloudflare.com/turnstile/v0/siteverify")
+        val data = "secret=" + URLEncoder.encode(secret, "UTF-8") +
+                   "&response=" + URLEncoder.encode(token, "UTF-8")
+        val conn = url.openConnection() as java.net.HttpURLConnection
+        conn.requestMethod = "POST"
+        conn.doOutput = true
+        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+        conn.outputStream.use { os -> os.write(data.toByteArray(Charsets.UTF_8)) }
+        val response = conn.inputStream.bufferedReader().readText()
+        println("Turnstile response: $response")
+        response.contains("\"success\":true")
+    } catch (e: Exception) {
+        println("Turnstile verification error: ${e.message}")
+        false
+    }
+}
+
 fun main() {
     embeddedServer(Netty, port = 8080) {
         routing {
             staticResources("/assets", "assets")
 
+            get("/manifest.json") {
+                call.respondText(MANIFEST_JSON, ContentType.Application.Json)
+            }
+
+            get("/sw.js") {
+                call.response.headers.append("Cache-Control", "no-cache, no-store")
+                call.response.headers.append("Service-Worker-Allowed", "/")
+                call.respondText(SERVICE_WORKER_JS, ContentType.parse("application/javascript"))
+            }
+
             get("/") {
                 val mailingOn = System.getenv("MAILING_ON") ?: "ON"
                 val isOff = mailingOn.uppercase() == "OFF"
+                val devMode = System.getenv("DEV_MODE") == "true"
 
                 call.respondText(
                     """
@@ -38,6 +389,8 @@ fun main() {
                         <title>Welcome</title>
                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
                         <link rel="icon" type="image/svg+xml" href="/assets/berlin_team.svg" />
+                        ${pwaHead()}
+                        ${if (isOff && !devMode) """<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>""" else ""}
                         <style>
                             * {
                                 box-sizing: border-box;
@@ -168,6 +521,7 @@ fun main() {
                                     <input type="hidden" name="skipAuth" value="true" />
                                     <div class="actions">
                                         <button type="submit">Order coffee now</button>
+                                        ${if (!devMode) """<div class="cf-turnstile" data-sitekey="0x4AAAAAACnSiv5qAzR0Di06" style="margin-top:12px;"></div>""" else ""}
                                     </div>
                                 </form>
                             """ else """
@@ -185,6 +539,7 @@ fun main() {
                                 </form>
                             """}
                         </main>
+                        ${pwaBanner()}
                     </body>
                     </html>
                     """.trimIndent(),
@@ -284,6 +639,7 @@ fun main() {
                         <meta charset="UTF-8">
                         <title>Code Sent</title>
                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        ${pwaHead()}
                         <style>
                             body {
                                 min-height: 100vh;
@@ -361,6 +717,7 @@ fun main() {
                                 <p class="hint">The code is valid for 5 minutes.</p>
                             </form>
                         </main>
+                        ${pwaBanner()}
                     </body>
                     </html>
                     """.trimIndent(),
@@ -377,9 +734,15 @@ fun main() {
                 val stored = loginCodes[email]
                 val now = Instant.now()
 
-                val success = skipAuth || (stored != null &&
-                    stored.code == code &&
-                    stored.expiresAt.isAfter(now))
+                val turnstileToken = params["cf-turnstile-response"]?.trim().orEmpty()
+                val turnstileSecret = System.getenv("CLOUDFLARE_TURNSTILE") ?: ""
+                val devMode = System.getenv("DEV_MODE") == "true"
+                val success = if (skipAuth) {
+                    if (devMode || turnstileSecret.isBlank()) true
+                    else verifyTurnstile(turnstileToken, turnstileSecret)
+                } else {
+                    stored != null && stored.code == code && stored.expiresAt.isAfter(now)
+                }
 
                 if (success) {
                     loginCodes.remove(email)
@@ -393,6 +756,7 @@ fun main() {
                             <title>Team Coffee</title>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0">
                             <link rel="icon" type="image/svg+xml" href="/assets/berlin_team.svg" />
+                            ${pwaHead()}
                             <style>
                                 * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
                                 body {
@@ -693,6 +1057,7 @@ fun main() {
                                 // Initial render to show empty placeholder
                                 renderCart();
                             </script>
+                            ${pwaBanner()}
                         </body>
                         </html>
                         """.trimIndent(),
@@ -708,10 +1073,12 @@ fun main() {
                             <meta charset="UTF-8">
                             <title>Login Failed</title>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            ${pwaHead()}
                         </head>
                         <body>
                             <p>$message</p>
                             <p><a href="/">Back to login page</a></p>
+                            ${pwaBanner()}
                         </body>
                         </html>
                         """.trimIndent(),
@@ -770,6 +1137,7 @@ fun main() {
                         <title>Team Coffee – Sent</title>
                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
                         <link rel="icon" type="image/svg+xml" href="/assets/berlin_team.svg" />
+                        ${pwaHead()}
                         <style>
                             * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
                             body {
@@ -849,12 +1217,9 @@ fun main() {
                             <h1>Order Sent!</h1>
                             <p class="status">$statusText</p>
                             <pre>${summary.replace("<", "&lt;")}</pre>
-                            <form method="post" action="/coffee">
-                                <input type="hidden" name="email" value="${email}" />
-                                <input type="hidden" name="skipAuth" value="true" />
-                                <button type="submit" class="button">New Order</button>
-                            </form>
+                            <a href="/" class="button">New Order</a>
                         </main>
+                        ${pwaBanner()}
                     </body>
                     </html>
                     """.trimIndent(),
